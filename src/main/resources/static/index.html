@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Retail Live Pricing Demo</title>
+  <style>
+    :root {
+      --bg: #0c1527;
+      --panel: #121f38;
+      --text: #e8eefc;
+      --muted: #8fa4c9;
+      --green: #2bd67b;
+      --red: #ff5f6d;
+      --orange: #ffb347;
+      --border: #2a3b5e;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      color: var(--text);
+      background: radial-gradient(1200px 700px at 20% 0%, #1e2e50 0%, var(--bg) 50%);
+      min-height: 100vh;
+      padding: 24px;
+    }
+    h1 { margin: 0 0 6px 0; }
+    .subtitle { color: var(--muted); margin-bottom: 20px; }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .card {
+      background: rgba(18,31,56,0.9);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      backdrop-filter: blur(4px);
+    }
+    .tape {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .chip {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 13px;
+    }
+    .up { color: var(--green); }
+    .down { color: var(--red); }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 8px 4px; border-bottom: 1px solid rgba(143,164,201,0.15); }
+    .badge { padding: 3px 8px; border-radius: 8px; border: 1px solid var(--border); font-size: 12px; }
+    .warn { color: var(--orange); }
+    .row { display: flex; justify-content: space-between; margin-top: 8px; }
+  </style>
+</head>
+<body>
+<h1>Retail Live Pricing</h1>
+<div class="subtitle">Live WebSocket demo for ingestion, conflation, fan-out, and backend portfolio P&L.</div>
+<div class="tape" id="tape"></div>
+<div class="grid">
+  <section class="card">
+    <h3>Portfolio Snapshot</h3>
+    <div class="row"><span>Total Market Value</span><strong id="mv">-</strong></div>
+    <div class="row"><span>Total Cost Basis</span><strong id="cb">-</strong></div>
+    <div class="row"><span>Unrealized P&L</span><strong id="pnl">-</strong></div>
+    <div class="row"><span>Latency</span><span class="badge" id="latency">-</span></div>
+    <table>
+      <thead><tr><th>Symbol</th><th>Qty</th><th>Last</th><th>P&L</th></tr></thead>
+      <tbody id="lines"></tbody>
+    </table>
+  </section>
+  <section class="card">
+    <h3>System Status</h3>
+    <div class="row"><span>Connection</span><span class="badge" id="status">connecting</span></div>
+    <div class="row"><span>Screen</span><span class="badge">portfolio</span></div>
+    <div class="row"><span>Stale Feed</span><span id="stale" class="badge">no</span></div>
+    <pre id="events" style="height:260px;overflow:auto;background:#091227;padding:10px;border-radius:8px;border:1px solid var(--border)"></pre>
+  </section>
+</div>
+<script>
+  const tape = document.getElementById('tape');
+  const lines = document.getElementById('lines');
+  const statusEl = document.getElementById('status');
+  const events = document.getElementById('events');
+  const stale = document.getElementById('stale');
+  const mv = document.getElementById('mv');
+  const cb = document.getElementById('cb');
+  const pnl = document.getElementById('pnl');
+  const latency = document.getElementById('latency');
+  const priceMap = new Map();
+
+  function fmt(n) {
+    const v = Number(n);
+    if (Number.isNaN(v)) return '-';
+    return v.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  }
+
+  function append(msg) {
+    events.textContent = `${new Date().toISOString()} ${msg}\n` + events.textContent.slice(0, 5000);
+  }
+
+  const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+  const ws = new WebSocket(`${protocol}://${location.host}/ws/pricing?userId=demo-user-1`);
+
+  ws.onopen = () => {
+    statusEl.textContent = 'connected';
+    ws.send(JSON.stringify({ type: 'screen_context', screen: 'PORTFOLIO' }));
+    ws.send(JSON.stringify({ type: 'app_state', state: 'FOREGROUND' }));
+    append('socket opened');
+  };
+
+  ws.onclose = () => {
+    statusEl.textContent = 'closed';
+    append('socket closed');
+  };
+
+  ws.onmessage = (evt) => {
+    const data = JSON.parse(evt.data);
+    append(`event ${data.type}`);
+    if (data.type === 'price_batch') {
+      data.updates.forEach(u => {
+        priceMap.set(u.symbol, u);
+        stale.textContent = u.stale ? 'yes' : 'no';
+      });
+      tape.innerHTML = [...priceMap.values()].map(u => {
+        const cls = Number(u.changeAmount) >= 0 ? 'up' : 'down';
+        return `<span class="chip"><strong>${u.symbol}</strong> ${fmt(u.last)} <span class="${cls}">${fmt(u.changePercent)}%</span></span>`;
+      }).join('');
+      return;
+    }
+    if (data.type === 'portfolio_snapshot') {
+      mv.textContent = fmt(data.snapshot.totalMarketValue);
+      cb.textContent = fmt(data.snapshot.totalCostBasis);
+      pnl.textContent = fmt(data.snapshot.unrealizedPnl);
+      const cls = Number(data.snapshot.unrealizedPnl) >= 0 ? 'up' : 'down';
+      pnl.className = cls;
+      const now = Date.now();
+      const calcAt = Date.parse(data.snapshot.calculatedAt);
+      latency.textContent = `${Math.max(0, now - calcAt)} ms`;
+      lines.innerHTML = data.snapshot.lines.map(line => {
+        const color = Number(line.unrealizedPnl) >= 0 ? 'up' : 'down';
+        return `<tr><td>${line.symbol}</td><td>${fmt(line.quantity)}</td><td>${fmt(line.lastPrice)}</td><td class="${color}">${fmt(line.unrealizedPnl)}</td></tr>`;
+      }).join('');
+      return;
+    }
+    if (data.type === 'system_status') {
+      if (data.status === 'error') {
+        statusEl.classList.add('warn');
+      }
+    }
+  };
+
+  setInterval(() => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'heartbeat' }));
+    }
+  }, 30000);
+</script>
+</body>
+</html>

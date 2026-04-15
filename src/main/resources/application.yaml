@@ -1,0 +1,65 @@
+spring:
+  application:
+    name: retail-live-pricing
+  profiles:
+    active: local
+  datasource:
+    url: jdbc:postgresql://localhost:5432/live_pricing
+    username: postgres
+    password: superpass
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: false
+    open-in-view: false
+  flyway:
+    enabled: true
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: retail-live-pricing
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.retail.livepricing.*"
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:SeCrET}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: always
+
+app:
+  seed:
+    enabled: true
+  ingestion:
+    simulated-interval-ms: 200
+  conflation:
+    free-window-ms: 1000
+    standard-window-ms: 200
+    pro-window-ms: 100
+  validation:
+    stock-outlier-pct: 0.10
+    etf-outlier-pct: 0.10
+    crypto-outlier-pct: 0.50
+  kafka:
+    topics:
+      price-ticks: price-ticks
+      price-updates: price-updates
+      portfolio-calc-tasks: portfolio-calc-tasks
+      portfolio-updates: portfolio-updates
+      dead-letter: pricing-dead-letter
