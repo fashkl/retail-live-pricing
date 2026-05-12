@@ -66,6 +66,23 @@ services:
     depends_on:
       - app
 
+  grafana:
+    image: grafana/grafana:11.1.4
+    container_name: live-pricing-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./ops/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./ops/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./ops/grafana/dashboards:/etc/grafana/provisioning/dashboards/json:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
   app:
     build:
       context: .
@@ -90,3 +107,6 @@ services:
         condition: service_started
       redis:
         condition: service_started
+
+volumes:
+  grafana-data:
