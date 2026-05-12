@@ -35,6 +35,8 @@ spring:
       password: ${SPRING_DATA_REDIS_PASSWORD:SeCrET}
 
 management:
+  server:
+    port: 8383
   endpoints:
     web:
       exposure:
@@ -42,6 +44,19 @@ management:
   endpoint:
     health:
       show-details: always
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      env: ${ENVIRONMENT:prod}
+    distribution:
+      percentiles-histogram:
+        http:
+          server:
+            requests: true         # enable histogram for HTTP latency
+      percentiles:
+        http:
+          server:
+            requests: 0.5, 0.95, 0.99
 
 app:
   seed:
