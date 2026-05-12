@@ -2,12 +2,13 @@ package com.retail.livepricing.streaming.ws;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.retail.livepricing.common.metrics.BusinessMetrics;
 import com.retail.livepricing.common.model.AppState;
+import com.retail.livepricing.common.model.ScreenContext;
 import com.retail.livepricing.common.model.ScreenType;
 import com.retail.livepricing.streaming.service.GatewayOutboundService;
 import com.retail.livepricing.streaming.service.SessionContextService;
 import com.retail.livepricing.streaming.service.WebSocketSessionRegistry;
-import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -15,6 +16,7 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -24,18 +26,18 @@ public class PricingWebSocketHandler extends TextWebSocketHandler {
     private final SessionContextService sessionContextService;
     private final GatewayOutboundService outboundService;
     private final ObjectMapper objectMapper;
-    private final MeterRegistry meterRegistry;
+    private final BusinessMetrics businessMetrics;
 
     public PricingWebSocketHandler(WebSocketSessionRegistry sessionRegistry,
                                    SessionContextService sessionContextService,
                                    GatewayOutboundService outboundService,
                                    ObjectMapper objectMapper,
-                                   MeterRegistry meterRegistry) {
+                                   BusinessMetrics businessMetrics) {
         this.sessionRegistry = sessionRegistry;
         this.sessionContextService = sessionContextService;
         this.outboundService = outboundService;
         this.objectMapper = objectMapper;
-        this.meterRegistry = meterRegistry;
+        this.businessMetrics = businessMetrics;
     }
 
     @Override
@@ -44,7 +46,7 @@ public class PricingWebSocketHandler extends TextWebSocketHandler {
         sessionRegistry.register(userId, session);
         sessionContextService.upsert(userId, ScreenType.PORTFOLIO, Set.of());
         outboundService.sendStatus(userId, "connected", "stream_ready");
-        meterRegistry.counter("gateway.connections.opened").increment();
+        businessMetrics.recordWsConnectionOpened();
     }
 
     @Override
@@ -68,11 +70,18 @@ public class PricingWebSocketHandler extends TextWebSocketHandler {
             }
             case "app_state" -> {
                 AppState state = AppState.valueOf(json.path("state").asText("FOREGROUND"));
+                ScreenContext current = sessionContextService.get(userId);
+                if (current != null && current.appState() == AppState.BACKGROUND && state == AppState.FOREGROUND) {
+                    businessMetrics.recordResumeCatchup(current.updatedAt(), Instant.now());
+                }
                 sessionContextService.setAppState(userId, state);
                 outboundService.sendStatus(userId, "ok", "app_state_updated");
             }
             case "heartbeat" -> outboundService.sendStatus(userId, "ok", "heartbeat_ack");
-            default -> outboundService.sendStatus(userId, "error", "unsupported_message_type");
+            default -> {
+                businessMetrics.recordWsGapEvent("unsupported_message_type");
+                outboundService.sendStatus(userId, "error", "unsupported_message_type");
+            }
         }
     }
 
@@ -81,7 +90,7 @@ public class PricingWebSocketHandler extends TextWebSocketHandler {
         String userId = userId(session);
         sessionRegistry.unregister(userId);
         sessionContextService.remove(userId);
-        meterRegistry.counter("gateway.connections.closed").increment();
+        businessMetrics.recordWsConnectionClosed();
     }
 
     private String userId(WebSocketSession session) {

@@ -1,7 +1,7 @@
 package com.retail.livepricing.ingestion.service;
 
+import com.retail.livepricing.common.metrics.BusinessMetrics;
 import com.retail.livepricing.ingestion.adapter.SimulatedFeedAdapter;
-import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -10,18 +10,18 @@ public class SimulatedFeedIngestionJob {
     private final SimulatedFeedAdapter simulatedFeedAdapter;
     private final TickValidator tickValidator;
     private final TickPublisher tickPublisher;
-    private final MeterRegistry meterRegistry;
+    private final BusinessMetrics businessMetrics;
     private final FeedHealthService feedHealthService;
 
     public SimulatedFeedIngestionJob(SimulatedFeedAdapter simulatedFeedAdapter,
                                      TickValidator tickValidator,
                                      TickPublisher tickPublisher,
-                                     MeterRegistry meterRegistry,
+                                     BusinessMetrics businessMetrics,
                                      FeedHealthService feedHealthService) {
         this.simulatedFeedAdapter = simulatedFeedAdapter;
         this.tickValidator = tickValidator;
         this.tickPublisher = tickPublisher;
-        this.meterRegistry = meterRegistry;
+        this.businessMetrics = businessMetrics;
         this.feedHealthService = feedHealthService;
     }
 
@@ -32,7 +32,7 @@ public class SimulatedFeedIngestionJob {
                 tickPublisher.publish(tick);
                 feedHealthService.markTick(tick.source());
             } else {
-                meterRegistry.counter("ticks.rejected", "reason", "invalid_or_outlier").increment();
+                businessMetrics.recordTickRejected("invalid_or_outlier", tick.source());
             }
         });
     }

@@ -3,8 +3,8 @@ package com.retail.livepricing.pricingcache;
 import com.retail.livepricing.common.config.KafkaTopicsProperties;
 import com.retail.livepricing.common.event.PriceUpdateV1;
 import com.retail.livepricing.common.event.TickV1;
+import com.retail.livepricing.common.metrics.BusinessMetrics;
 import com.retail.livepricing.common.model.PriceUpdate;
-import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -15,25 +15,27 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 public class PriceCacheService {
     private final Map<String, PriceState> inMemory = new ConcurrentHashMap<>();
     private final Map<String, PriceState> pendingBySymbol = new ConcurrentHashMap<>();
+    private final AtomicInteger rawTicksSinceLastFlush = new AtomicInteger();
 
     private final StringRedisTemplate redisTemplate;
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final KafkaTopicsProperties topics;
-    private final MeterRegistry meterRegistry;
+    private final BusinessMetrics businessMetrics;
 
     public PriceCacheService(StringRedisTemplate redisTemplate,
                              KafkaTemplate<String, Object> kafkaTemplate,
                              KafkaTopicsProperties topics,
-                             MeterRegistry meterRegistry) {
+                             BusinessMetrics businessMetrics) {
         this.redisTemplate = redisTemplate;
         this.kafkaTemplate = kafkaTemplate;
         this.topics = topics;
-        this.meterRegistry = meterRegistry;
+        this.businessMetrics = businessMetrics;
     }
 
     @KafkaListener(topics = "${app.kafka.topics.price-ticks}", groupId = "price-cache")
@@ -42,6 +44,8 @@ public class PriceCacheService {
         inMemory.put(state.symbol(), state);
         pendingBySymbol.put(state.symbol(), state);
         redisTemplate.opsForValue().set("price:" + state.symbol(), state.latest().last().toPlainString());
+        rawTicksSinceLastFlush.incrementAndGet();
+        businessMetrics.recordConflationInput(event.payload());
     }
 
     @Scheduled(fixedDelayString = "${app.conflation.standard-window-ms:200}")
@@ -52,6 +56,8 @@ public class PriceCacheService {
 
         ArrayList<PriceState> pending = new ArrayList<>(pendingBySymbol.values());
         pendingBySymbol.clear();
+
+        int rawInputCount = rawTicksSinceLastFlush.getAndSet(0);
 
         for (PriceState state : pending) {
             PriceUpdate update = new PriceUpdate(
@@ -68,8 +74,10 @@ public class PriceCacheService {
                     state.latest().source()
             );
             kafkaTemplate.send(topics.priceUpdates(), update.symbol(), new PriceUpdateV1(update));
-            meterRegistry.counter("price.updates.published").increment();
+            businessMetrics.recordPriceUpdatePublished(update.assetClass(), update.source(), update.stale());
         }
+
+        businessMetrics.recordConflationFlush(rawInputCount, pending.size());
     }
 
     public PriceUpdate latestPrice(String symbol) {

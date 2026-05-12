@@ -3,6 +3,7 @@ package com.retail.livepricing.portfolio.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.retail.livepricing.common.event.PortfolioSnapshotV1;
+import com.retail.livepricing.common.metrics.BusinessMetrics;
 import com.retail.livepricing.common.model.PortfolioLine;
 import com.retail.livepricing.common.model.PortfolioSnapshot;
 import com.retail.livepricing.common.model.PriceUpdate;
@@ -30,6 +31,7 @@ public class PortfolioCalculatorService {
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final com.retail.livepricing.common.config.KafkaTopicsProperties topics;
     private final ObjectMapper objectMapper;
+    private final BusinessMetrics businessMetrics;
 
     public PortfolioCalculatorService(PortfolioRepository portfolioRepository,
                                       PositionRepository positionRepository,
@@ -37,7 +39,8 @@ public class PortfolioCalculatorService {
                                       PriceCacheService priceCacheService,
                                       KafkaTemplate<String, Object> kafkaTemplate,
                                       com.retail.livepricing.common.config.KafkaTopicsProperties topics,
-                                      ObjectMapper objectMapper) {
+                                      ObjectMapper objectMapper,
+                                      BusinessMetrics businessMetrics) {
         this.portfolioRepository = portfolioRepository;
         this.positionRepository = positionRepository;
         this.auditEventRepository = auditEventRepository;
@@ -45,6 +48,7 @@ public class PortfolioCalculatorService {
         this.kafkaTemplate = kafkaTemplate;
         this.topics = topics;
         this.objectMapper = objectMapper;
+        this.businessMetrics = businessMetrics;
     }
 
     public PortfolioSnapshot calculateAndPublish(String userId) {
@@ -58,6 +62,9 @@ public class PortfolioCalculatorService {
 
         for (PositionEntity p : positions) {
             PriceUpdate latest = priceCacheService.latestPrice(p.getSymbol());
+            if (latest == null) {
+                businessMetrics.recordPortfolioMissingPrice("missing_latest_price");
+            }
             BigDecimal last = latest == null ? p.getAvgCost() : latest.last();
             BigDecimal marketValue = PortfolioMath.marketValue(p.getQuantity(), last);
             BigDecimal pnl = PortfolioMath.unrealizedPnl(marketValue, p.getCostBasis());
@@ -84,6 +91,7 @@ public class PortfolioCalculatorService {
         );
 
         kafkaTemplate.send(topics.portfolioUpdates(), userId, new PortfolioSnapshotV1(snapshot));
+        businessMetrics.recordPortfolioSnapshotPublished();
         persistAudit(userId, snapshot);
         return snapshot;
     }

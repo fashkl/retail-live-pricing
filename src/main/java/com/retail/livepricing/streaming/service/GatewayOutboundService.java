@@ -6,10 +6,11 @@ import com.retail.livepricing.common.event.PriceUpdateV1;
 import com.retail.livepricing.common.message.PortfolioSnapshotMessage;
 import com.retail.livepricing.common.message.PriceBatchMessage;
 import com.retail.livepricing.common.message.SystemStatusMessage;
+import com.retail.livepricing.common.metrics.BusinessMetrics;
 import com.retail.livepricing.common.model.AppState;
+import com.retail.livepricing.common.model.PriceUpdate;
 import com.retail.livepricing.common.model.ScreenContext;
 import com.retail.livepricing.common.model.ScreenType;
-import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.TextMessage;
@@ -24,22 +25,21 @@ public class GatewayOutboundService {
     private final WebSocketSessionRegistry sessionRegistry;
     private final SessionContextService sessionContextService;
     private final ObjectMapper objectMapper;
-    private final MeterRegistry meterRegistry;
+    private final BusinessMetrics businessMetrics;
 
     public GatewayOutboundService(WebSocketSessionRegistry sessionRegistry,
                                   SessionContextService sessionContextService,
                                   ObjectMapper objectMapper,
-                                  MeterRegistry meterRegistry) {
+                                  BusinessMetrics businessMetrics) {
         this.sessionRegistry = sessionRegistry;
         this.sessionContextService = sessionContextService;
         this.objectMapper = objectMapper;
-        this.meterRegistry = meterRegistry;
+        this.businessMetrics = businessMetrics;
     }
 
     @KafkaListener(topics = "${app.kafka.topics.price-updates}", groupId = "streaming-gateway")
     public void onPrice(PriceUpdateV1 event) {
-        String symbol = event.payload().symbol();
-        pushToInterestedUsers(symbol, PriceBatchMessage.of(List.of(event.payload())));
+        pushPriceToInterestedUsers(event.payload());
     }
 
     @KafkaListener(topics = "${app.kafka.topics.portfolio-updates}", groupId = "streaming-gateway")
@@ -53,15 +53,24 @@ public class GatewayOutboundService {
             if (ctx.screen() != ScreenType.PORTFOLIO) {
                 return;
             }
-            send(session, PortfolioSnapshotMessage.of(event.payload()));
+            PortfolioSnapshotMessage message = PortfolioSnapshotMessage.of(event.payload());
+            if (send(session, message, "portfolio_snapshot", ctx.screen())) {
+                businessMetrics.recordPortfolioRecalcDelay(event.payload().calculatedAt(), "sent");
+            } else {
+                businessMetrics.recordPortfolioRecalcDelay(event.payload().calculatedAt(), "failed");
+            }
         });
     }
 
     public void sendStatus(String userId, String status, String detail) {
-        sessionRegistry.find(userId).ifPresent(session -> send(session, SystemStatusMessage.of(status, detail)));
+        sessionRegistry.find(userId).ifPresent(session -> {
+            ScreenContext ctx = sessionContextService.get(userId);
+            send(session, SystemStatusMessage.of(status, detail), "system_status", ctx == null ? ScreenType.PORTFOLIO : ctx.screen());
+        });
     }
 
-    private void pushToInterestedUsers(String symbol, Object payload) {
+    private void pushPriceToInterestedUsers(PriceUpdate update) {
+        PriceBatchMessage payload = PriceBatchMessage.of(List.of(update));
         for (var entry : sessionRegistry.entries()) {
             String userId = entry.getKey();
             WebSocketSession session = entry.getValue();
@@ -69,8 +78,10 @@ public class GatewayOutboundService {
             if (ctx == null || ctx.appState() == AppState.BACKGROUND) {
                 continue;
             }
-            if (ctx.screen() == ScreenType.PORTFOLIO || includesSymbol(ctx.symbols(), symbol) || ctx.screen() == ScreenType.STOCK_DETAIL) {
-                send(session, payload);
+
+            if (ctx.screen() == ScreenType.PORTFOLIO || includesSymbol(ctx.symbols(), update.symbol()) || ctx.screen() == ScreenType.STOCK_DETAIL) {
+                boolean sent = send(session, payload, "price_batch", ctx.screen());
+                businessMetrics.recordTickToScreenLatency(update.eventTime(), ctx.screen(), sent ? "sent" : "failed");
             }
         }
     }
@@ -79,12 +90,14 @@ public class GatewayOutboundService {
         return symbols != null && symbols.contains(symbol);
     }
 
-    private void send(WebSocketSession session, Object payload) {
+    private boolean send(WebSocketSession session, Object payload, String messageType, ScreenType screen) {
         try {
             session.sendMessage(new TextMessage(objectMapper.writeValueAsString(payload)));
-            meterRegistry.counter("gateway.messages.sent").increment();
+            businessMetrics.recordUpdateDelivered(messageType, screen);
+            return true;
         } catch (IOException ex) {
-            meterRegistry.counter("gateway.messages.failed").increment();
+            businessMetrics.recordUpdateFailed(messageType, screen, "io_exception");
+            return false;
         }
     }
 }
