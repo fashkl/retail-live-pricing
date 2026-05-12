@@ -63,6 +63,13 @@ app:
     enabled: true
   ingestion:
     simulated-interval-ms: 200
+    simulation:
+      min-symbols-per-cycle: 4
+      max-symbols-per-cycle: 7
+      burst-chance-pct: 20
+      burst-extra-min: 2
+      burst-extra-max: 7
+      volatility-spike-chance-pct: 8
   conflation:
     free-window-ms: 1000
     standard-window-ms: 200
