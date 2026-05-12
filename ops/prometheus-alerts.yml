@@ -98,3 +98,25 @@ groups:
         annotations:
           summary: "Retail Live Pricing metrics target is down"
           description: "Prometheus cannot scrape the retail-live-pricing target for more than 2 minutes."
+
+      - alert: KafkaConsumerLagHigh
+        expr: max(kafka_consumer_fetch_manager_records_lag_max{job="retail-live-pricing"}) > 1000
+        for: 5m
+        labels:
+          severity: warning
+          service: retail-live-pricing
+          slo: kafka-consumer-lag
+        annotations:
+          summary: "Kafka consumer lag is elevated"
+          description: "Max consumer lag exceeded 1,000 records for 5m. Check consumer throughput and partition skew."
+
+      - alert: KafkaConsumerLagCritical
+        expr: max(kafka_consumer_fetch_manager_records_lag_max{job="retail-live-pricing"}) > 5000
+        for: 2m
+        labels:
+          severity: critical
+          service: retail-live-pricing
+          slo: kafka-consumer-lag
+        annotations:
+          summary: "Kafka consumer lag is critically high"
+          description: "Max consumer lag exceeded 5,000 records for 2m. User-facing latency risk is high."

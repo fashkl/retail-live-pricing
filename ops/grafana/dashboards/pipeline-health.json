@@ -56,6 +56,26 @@
       "targets": [{"expr": "sum(rate(business_impacted_users_per_tick_sum[5m])) / clamp_min(sum(rate(business_impacted_users_per_tick_count[5m])), 1)", "refId": "A"}],
       "title": "Avg Impacted Users Per Tick",
       "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "id": 6,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}},
+      "targets": [{"expr": "topk(10, max by (client_id) (kafka_consumer_fetch_manager_records_lag_max))", "refId": "A"}],
+      "title": "Top Kafka Consumer Lag (max records)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "id": 7,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}},
+      "targets": [{"expr": "sum(max by (client_id) (kafka_consumer_fetch_manager_records_lag_max))", "refId": "A"}],
+      "title": "Total Kafka Consumer Lag (records)",
+      "type": "timeseries"
     }
   ],
   "refresh": "15s",
