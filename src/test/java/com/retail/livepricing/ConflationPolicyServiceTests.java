@@ -16,7 +16,8 @@ class ConflationPolicyServiceTests {
     void returnsExpectedTierWindow() {
         ConflationPolicyService service = new ConflationPolicyService(new AppProperties(
                 new AppProperties.Conflation(Duration.ofSeconds(1), Duration.ofMillis(200), Duration.ofMillis(100)),
-                new AppProperties.Validation(new BigDecimal("0.10"), new BigDecimal("0.10"), new BigDecimal("0.50"))
+                new AppProperties.Validation(new BigDecimal("0.10"), new BigDecimal("0.10"), new BigDecimal("0.50")),
+                new AppProperties.Fanout(500)
         ));
 
         assertThat(service.windowFor(UserTier.FREE)).isEqualTo(Duration.ofSeconds(1));

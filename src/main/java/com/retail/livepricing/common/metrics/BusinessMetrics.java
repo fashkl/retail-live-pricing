@@ -44,4 +44,6 @@ public interface BusinessMetrics {
     void recordWsConnectionClosed();
 
     void recordWsGapEvent(String reason);
+
+    void recordFanOutBatchesEmitted(int batchCount);
 }

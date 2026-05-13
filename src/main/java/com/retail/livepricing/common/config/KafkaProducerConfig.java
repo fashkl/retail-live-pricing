@@ -27,6 +27,9 @@ public class KafkaProducerConfig {
         config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
         config.put(ProducerConfig.ACKS_CONFIG, "all");
         config.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
+        config.put(ProducerConfig.LINGER_MS_CONFIG, "5");
+        config.put(ProducerConfig.BATCH_SIZE_CONFIG, "65536");
+        config.put(ProducerConfig.COMPRESSION_TYPE_CONFIG, "lz4");
         DefaultKafkaProducerFactory<String, Object> producerFactory = new DefaultKafkaProducerFactory<>(config);
         producerFactory.addListener(new MicrometerProducerListener<>(meterRegistry));
         return producerFactory;

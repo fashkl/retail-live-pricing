@@ -184,6 +184,11 @@ public class MicrometerBusinessMetrics implements BusinessMetrics {
         ));
     }
 
+    @Override
+    public void recordFanOutBatchesEmitted(int batchCount) {
+        counter(BusinessMetricCatalog.FANOUT_BATCHES_EMITTED_TOTAL, Map.of("outcome", "emitted"), batchCount);
+    }
+
     private void counter(String metric, Map<String, String> tags) {
         meterRegistry.counter(metric, tagPolicy.sanitize(tags)).increment();
     }

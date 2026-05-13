@@ -58,4 +58,18 @@ public class KafkaConsumerConfig {
         factory.setCommonErrorHandler(new DefaultErrorHandler(new FixedBackOff(500L, 2L)));
         return factory;
     }
+
+    @Bean
+    ConcurrentKafkaListenerContainerFactory<String, Object> portfolioCalcListenerContainerFactory(
+            ConsumerFactory<String, Object> consumerFactory,
+            KafkaCorrelationRecordInterceptor kafkaCorrelationRecordInterceptor) {
+        ConcurrentKafkaListenerContainerFactory<String, Object> factory =
+                new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(consumerFactory);
+        factory.setRecordInterceptor(kafkaCorrelationRecordInterceptor);
+        factory.setCommonErrorHandler(new DefaultErrorHandler(new FixedBackOff(500L, 2L)));
+        // portfolio-calc-tasks has 12 partitions (KafkaTopicConfig); match concurrency to utilise all of them
+        factory.setConcurrency(12);
+        return factory;
+    }
 }

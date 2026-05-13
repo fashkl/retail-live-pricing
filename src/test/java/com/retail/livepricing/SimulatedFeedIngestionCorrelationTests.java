@@ -40,7 +40,8 @@ class SimulatedFeedIngestionCorrelationTests {
 
         AppProperties properties = new AppProperties(
                 new AppProperties.Conflation(Duration.ofSeconds(1), Duration.ofMillis(200), Duration.ofMillis(100)),
-                new AppProperties.Validation(new BigDecimal("0.5"), new BigDecimal("0.5"), new BigDecimal("0.5"))
+                new AppProperties.Validation(new BigDecimal("0.5"), new BigDecimal("0.5"), new BigDecimal("0.5")),
+                new AppProperties.Fanout(500)
         );
         TickValidator validator = new TickValidator(properties);
 

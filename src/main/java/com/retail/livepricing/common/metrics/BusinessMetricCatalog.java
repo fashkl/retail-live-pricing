@@ -32,4 +32,6 @@ public final class BusinessMetricCatalog {
     public static final String WS_CONNECTIONS_OPENED_TOTAL = "business.ws_connections_opened_total";
     public static final String WS_CONNECTIONS_CLOSED_TOTAL = "business.ws_connections_closed_total";
     public static final String WS_GAP_EVENTS_TOTAL = "business.ws_gap_events_total";
+
+    public static final String FANOUT_BATCHES_EMITTED_TOTAL = "business.fanout_batches_emitted_total";
 }
