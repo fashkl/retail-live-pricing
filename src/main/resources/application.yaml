@@ -7,6 +7,8 @@ spring:
     url: jdbc:postgresql://localhost:5432/live_pricing
     username: postgres
     password: superpass
+    hikari:
+      maximum-pool-size: 64
   jpa:
     hibernate:
       ddl-auto: validate
