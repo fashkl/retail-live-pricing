@@ -1,12 +1,17 @@
 # Alert Runbooks
 
 This runbook maps each Prometheus alert to concrete triage and mitigation steps.
+Structured logging baseline:
+- Logs are JSON (`logback-spring.xml`).
+- Correlation key is `correlationId` (also returned via `X-Correlation-Id` in HTTP responses).
+- Additional fields include `userId` and `wsSessionId` when available.
 
 ## TickToScreenP95High
 - Meaning: Tick-to-screen p95 latency is above 500ms for 5 minutes.
 - Verify:
   - Check Grafana `Latency & SLO` dashboard.
   - Check `KafkaConsumerLagHigh` and `KafkaConsumerLagCritical` state.
+  - Search logs by `correlationId` for slow request/stream paths and WS delivery lines.
 - Mitigate:
   - Verify app CPU/memory pressure.
   - Verify Kafka broker health and consumer lag.
@@ -37,6 +42,7 @@ This runbook maps each Prometheus alert to concrete triage and mitigation steps.
 - Verify:
   - Check active WS sessions and gateway logs.
   - Correlate with target down or network instability.
+  - Filter logs where `message` contains `WS outbound failed`.
 - Mitigate:
   - Restart gateway instance if degraded.
   - Back off outbound push rates temporarily.
@@ -65,6 +71,7 @@ This runbook maps each Prometheus alert to concrete triage and mitigation steps.
 - Verify:
   - Check app process/container health.
   - Check management port exposure and network routing.
+  - Confirm scrape target from Prometheus (`/api/v1/targets`) and app bind address.
 - Mitigate:
   - Restart app.
   - Validate `management.server.port` and firewall/network rules.
@@ -85,6 +92,7 @@ This runbook maps each Prometheus alert to concrete triage and mitigation steps.
 - Verify:
   - Confirm lag trend is increasing.
   - Correlate with latency alerts.
+  - Trace one `correlationId` from producer-side publish logs to downstream consumer and gateway logs.
 - Mitigate:
   - Prioritize consumer recovery (retry storm, poison messages).
   - Temporarily throttle producer burst load.

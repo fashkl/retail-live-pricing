@@ -14,6 +14,7 @@ import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.util.backoff.FixedBackOff;
 import io.micrometer.core.instrument.MeterRegistry;
+import com.retail.livepricing.common.observability.KafkaCorrelationRecordInterceptor;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -48,10 +49,12 @@ public class KafkaConsumerConfig {
 
     @Bean
     ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory(
-            ConsumerFactory<String, Object> consumerFactory) {
+            ConsumerFactory<String, Object> consumerFactory,
+            KafkaCorrelationRecordInterceptor kafkaCorrelationRecordInterceptor) {
         ConcurrentKafkaListenerContainerFactory<String, Object> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory);
+        factory.setRecordInterceptor(kafkaCorrelationRecordInterceptor);
         factory.setCommonErrorHandler(new DefaultErrorHandler(new FixedBackOff(500L, 2L)));
         return factory;
     }

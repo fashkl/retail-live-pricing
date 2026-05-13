@@ -4,6 +4,8 @@ import com.retail.livepricing.common.config.KafkaTopicsProperties;
 import com.retail.livepricing.common.event.TickV1;
 import com.retail.livepricing.common.metrics.BusinessMetrics;
 import com.retail.livepricing.common.model.Tick;
+import com.retail.livepricing.common.observability.KafkaMessageFactory;
+import com.retail.livepricing.common.observability.CorrelationContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -26,8 +28,9 @@ public class TickPublisher {
     }
 
     public void publish(Tick tick) {
-        kafkaTemplate.send(topics.priceTicks(), tick.symbol(), new TickV1(tick));
+        kafkaTemplate.send(KafkaMessageFactory.build(topics.priceTicks(), tick.symbol(), new TickV1(tick)));
         businessMetrics.recordTickPublished(tick);
-        log.debug("Published tick symbol={} seq={}", tick.symbol(), tick.sequence());
+        log.info("FLOW stage=ingestion.publish topic=price-ticks symbol={} seq={} source={} correlationId={}",
+                tick.symbol(), tick.sequence(), tick.source(), CorrelationContext.get());
     }
 }

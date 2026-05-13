@@ -42,11 +42,17 @@ Make `retail-live-pricing` production-ready with full metrics, dashboards, alert
 - Add grouping/inhibition to reduce alert noise.
 - Validate fire + resolve notifications with game-day tests.
 
-## Step 3: Structured Logging
-- Adopt JSON logging format.
-- Add correlation/request IDs across API, Kafka, and WS flows.
-- Define log levels per environment (`local`, `staging`, `prod`).
-- Add searchable fields: `service`, `env`, `traceId`, `userTier`, `symbol` (careful with cardinality in metrics; logs can hold richer context).
+## Step 3: Structured Logging (In Progress)
+- Completed:
+- JSON logging format added (`logback-spring.xml`).
+- Correlation ID support added:
+  - HTTP `X-Correlation-Id` filter (request/response)
+  - Kafka header propagation on producers
+  - Kafka consumer interceptor restores correlation in MDC
+- WS logging enriched with `userId` and `wsSessionId`.
+- Remaining:
+- Add centralized log storage/search (e.g., Loki or ELK) and saved queries.
+- Add explicit log redaction policy for sensitive fields.
 
 ## Step 4: Distributed Tracing
 - Add OpenTelemetry SDK and exporters.

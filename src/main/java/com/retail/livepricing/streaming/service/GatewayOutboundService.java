@@ -11,6 +11,10 @@ import com.retail.livepricing.common.model.AppState;
 import com.retail.livepricing.common.model.PriceUpdate;
 import com.retail.livepricing.common.model.ScreenContext;
 import com.retail.livepricing.common.model.ScreenType;
+import com.retail.livepricing.common.observability.CorrelationContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.TextMessage;
@@ -22,6 +26,7 @@ import java.util.Set;
 
 @Service
 public class GatewayOutboundService {
+    private static final Logger log = LoggerFactory.getLogger(GatewayOutboundService.class);
     private final WebSocketSessionRegistry sessionRegistry;
     private final SessionContextService sessionContextService;
     private final ObjectMapper objectMapper;
@@ -39,12 +44,16 @@ public class GatewayOutboundService {
 
     @KafkaListener(topics = "${app.kafka.topics.price-updates}", groupId = "streaming-gateway")
     public void onPrice(PriceUpdateV1 event) {
+        log.info("FLOW stage=gateway.consume topic=price-updates event=price_update symbol={} stale={} correlationId={}",
+                event.payload().symbol(), event.payload().stale(), CorrelationContext.get());
         pushPriceToInterestedUsers(event.payload());
     }
 
     @KafkaListener(topics = "${app.kafka.topics.portfolio-updates}", groupId = "streaming-gateway")
     public void onPortfolio(PortfolioSnapshotV1 event) {
         String userId = event.payload().userId();
+        log.info("FLOW stage=gateway.consume topic=portfolio-updates event=portfolio_snapshot userId={} lines={} correlationId={}",
+                userId, event.payload().lines().size(), CorrelationContext.get());
         sessionRegistry.find(userId).ifPresent(session -> {
             ScreenContext ctx = sessionContextService.get(userId);
             if (ctx == null || ctx.appState() == AppState.BACKGROUND) {
@@ -71,6 +80,7 @@ public class GatewayOutboundService {
 
     private void pushPriceToInterestedUsers(PriceUpdate update) {
         PriceBatchMessage payload = PriceBatchMessage.of(List.of(update));
+        int delivered = 0;
         for (var entry : sessionRegistry.entries()) {
             String userId = entry.getKey();
             WebSocketSession session = entry.getValue();
@@ -82,8 +92,13 @@ public class GatewayOutboundService {
             if (ctx.screen() == ScreenType.PORTFOLIO || includesSymbol(ctx.symbols(), update.symbol()) || ctx.screen() == ScreenType.STOCK_DETAIL) {
                 boolean sent = send(session, payload, "price_batch", ctx.screen());
                 businessMetrics.recordTickToScreenLatency(update.eventTime(), ctx.screen(), sent ? "sent" : "failed");
+                if (sent) {
+                    delivered++;
+                }
             }
         }
+        log.info("FLOW stage=gateway.fanout event=price_batch symbol={} deliveredSessions={} correlationId={}",
+                update.symbol(), delivered, CorrelationContext.get());
     }
 
     private boolean includesSymbol(Set<String> symbols, String symbol) {
@@ -92,12 +107,33 @@ public class GatewayOutboundService {
 
     private boolean send(WebSocketSession session, Object payload, String messageType, ScreenType screen) {
         try {
+            MDC.put("wsSessionId", session.getId());
+            String userId = userIdForSession(session);
+            if (userId != null) {
+                MDC.put("userId", userId);
+            }
             session.sendMessage(new TextMessage(objectMapper.writeValueAsString(payload)));
             businessMetrics.recordUpdateDelivered(messageType, screen);
+            log.info("FLOW stage=gateway.ws_send status=delivered type={} screen={} correlationId={}",
+                    messageType, screen, CorrelationContext.get());
             return true;
         } catch (IOException ex) {
             businessMetrics.recordUpdateFailed(messageType, screen, "io_exception");
+            log.warn("FLOW stage=gateway.ws_send status=failed type={} screen={} error={} correlationId={}",
+                    messageType, screen, ex.getMessage(), CorrelationContext.get());
             return false;
+        } finally {
+            MDC.remove("wsSessionId");
+            MDC.remove("userId");
         }
+    }
+
+    private String userIdForSession(WebSocketSession session) {
+        for (var entry : sessionRegistry.entries()) {
+            if (entry.getValue().getId().equals(session.getId())) {
+                return entry.getKey();
+            }
+        }
+        return null;
     }
 }

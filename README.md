@@ -334,6 +334,10 @@ Current automated tests cover:
   - `/Users/mohamedali/Projects/personal/java/retail-live-pricing/ops/alertmanager.yml`
 - Runbooks linked directly from alert annotations:
   - `/Users/mohamedali/Projects/personal/java/retail-live-pricing/docs/runbooks/alerts.md`
+- Structured logging + correlation:
+  - JSON logs configured in `/Users/mohamedali/Projects/personal/java/retail-live-pricing/src/main/resources/logback-spring.xml`
+  - HTTP `X-Correlation-Id` filter and propagation to Kafka headers/consumers
+  - WS logs include `userId` and `wsSessionId` fields when available
 
 ## Performance and SLO Targets
 

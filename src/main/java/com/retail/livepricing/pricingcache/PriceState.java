@@ -10,10 +10,11 @@ import java.time.Instant;
 public record PriceState(
         String symbol,
         PriceUpdate latest,
-        Instant lastUpdatedAt
+        Instant lastUpdatedAt,
+        String correlationId
 ) {
 
-    public static PriceState fromTick(Tick tick) {
+    public static PriceState fromTick(Tick tick, String correlationId) {
         BigDecimal changeAmount = tick.last().subtract(tick.previousClose());
         BigDecimal changePercent = changeAmount
                 .divide(tick.previousClose(), 8, RoundingMode.HALF_UP)
@@ -33,6 +34,6 @@ public record PriceState(
                 tick.source()
         );
 
-        return new PriceState(tick.symbol(), update, Instant.now());
+        return new PriceState(tick.symbol(), update, Instant.now(), correlationId);
     }
 }

@@ -6,9 +6,13 @@ import com.retail.livepricing.common.metrics.BusinessMetrics;
 import com.retail.livepricing.common.model.AppState;
 import com.retail.livepricing.common.model.ScreenContext;
 import com.retail.livepricing.common.model.ScreenType;
+import com.retail.livepricing.common.observability.CorrelationContext;
 import com.retail.livepricing.streaming.service.GatewayOutboundService;
 import com.retail.livepricing.streaming.service.SessionContextService;
 import com.retail.livepricing.streaming.service.WebSocketSessionRegistry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -22,6 +26,7 @@ import java.util.Set;
 
 @Component
 public class PricingWebSocketHandler extends TextWebSocketHandler {
+    private static final Logger log = LoggerFactory.getLogger(PricingWebSocketHandler.class);
     private final WebSocketSessionRegistry sessionRegistry;
     private final SessionContextService sessionContextService;
     private final GatewayOutboundService outboundService;
@@ -43,17 +48,27 @@ public class PricingWebSocketHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
         String userId = userId(session);
+        CorrelationContext.getOrCreate();
+        MDC.put("userId", userId);
+        MDC.put("wsSessionId", session.getId());
         sessionRegistry.register(userId, session);
         sessionContextService.upsert(userId, ScreenType.PORTFOLIO, Set.of());
         outboundService.sendStatus(userId, "connected", "stream_ready");
         businessMetrics.recordWsConnectionOpened();
+        log.info("WebSocket connected");
+        MDC.remove("userId");
+        MDC.remove("wsSessionId");
     }
 
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws IOException {
+        CorrelationContext.getOrCreate();
         JsonNode json = objectMapper.readTree(message.getPayload());
         String type = json.path("type").asText("unknown");
         String userId = userId(session);
+        MDC.put("userId", userId);
+        MDC.put("wsSessionId", session.getId());
+        log.info("WebSocket inbound type={}", type);
 
         switch (type) {
             case "screen_context" -> {
@@ -83,14 +98,22 @@ public class PricingWebSocketHandler extends TextWebSocketHandler {
                 outboundService.sendStatus(userId, "error", "unsupported_message_type");
             }
         }
+        MDC.remove("userId");
+        MDC.remove("wsSessionId");
     }
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         String userId = userId(session);
+        CorrelationContext.getOrCreate();
+        MDC.put("userId", userId);
+        MDC.put("wsSessionId", session.getId());
         sessionRegistry.unregister(userId);
         sessionContextService.remove(userId);
         businessMetrics.recordWsConnectionClosed();
+        log.info("WebSocket disconnected status={}", status.getCode());
+        MDC.remove("userId");
+        MDC.remove("wsSessionId");
     }
 
     private String userId(WebSocketSession session) {

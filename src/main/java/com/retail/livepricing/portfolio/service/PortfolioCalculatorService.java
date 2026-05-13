@@ -7,6 +7,7 @@ import com.retail.livepricing.common.metrics.BusinessMetrics;
 import com.retail.livepricing.common.model.PortfolioLine;
 import com.retail.livepricing.common.model.PortfolioSnapshot;
 import com.retail.livepricing.common.model.PriceUpdate;
+import com.retail.livepricing.common.observability.KafkaMessageFactory;
 import com.retail.livepricing.portfolio.entity.AuditEventEntity;
 import com.retail.livepricing.portfolio.entity.PortfolioEntity;
 import com.retail.livepricing.portfolio.entity.PositionEntity;
@@ -90,7 +91,7 @@ public class PortfolioCalculatorService {
                 lines
         );
 
-        kafkaTemplate.send(topics.portfolioUpdates(), userId, new PortfolioSnapshotV1(snapshot));
+        kafkaTemplate.send(KafkaMessageFactory.build(topics.portfolioUpdates(), userId, new PortfolioSnapshotV1(snapshot)));
         businessMetrics.recordPortfolioSnapshotPublished();
         persistAudit(userId, snapshot);
         return snapshot;
