@@ -63,8 +63,20 @@ services:
       - "9090:9090"
     volumes:
       - ./ops/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./ops/prometheus-alerts.yml:/etc/prometheus/prometheus-alerts.yml:ro
     depends_on:
       - app
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: live-pricing-alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./ops/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+    restart: unless-stopped
 
   grafana:
     image: grafana/grafana:11.1.4

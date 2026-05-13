@@ -16,6 +16,7 @@ groups:
         annotations:
           summary: "Tick-to-screen p95 latency is above 500ms"
           description: "p95 tick-to-screen latency exceeded target for 5m. Check streaming gateway, Kafka lag, and app load."
+          runbook_url: "https://github.com/fashkl/retail-live-pricing/blob/main/docs/runbooks/alerts.md#ticktoscreenp95high"
 
       - alert: TickToScreenP99Critical
         expr: |
@@ -31,6 +32,7 @@ groups:
         annotations:
           summary: "Tick-to-screen p99 latency is critically high"
           description: "p99 tick-to-screen latency exceeded 900ms for 5m. User experience likely degraded."
+          runbook_url: "https://github.com/fashkl/retail-live-pricing/blob/main/docs/runbooks/alerts.md#ticktoscreenp99critical"
 
       - alert: PortfolioRecalcP95High
         expr: |
@@ -46,6 +48,7 @@ groups:
         annotations:
           summary: "Portfolio recalc p95 delay is above 2s"
           description: "Portfolio recomputation delay is elevated; check calc consumer throughput and fanout pressure."
+          runbook_url: "https://github.com/fashkl/retail-live-pricing/blob/main/docs/runbooks/alerts.md#portfoliorecalcp95high"
 
       - alert: WsUpdateFailureRatioHigh
         expr: |
@@ -61,6 +64,7 @@ groups:
         annotations:
           summary: "WebSocket update failure ratio is above 2%"
           description: "Failed update ratio exceeded 2% for 5m. Check WS connection stability and downstream backpressure."
+          runbook_url: "https://github.com/fashkl/retail-live-pricing/blob/main/docs/runbooks/alerts.md#wsupdatefailureratiohigh"
 
       - alert: StaleUpdatesSpike
         expr: sum(rate(business_stale_updates_total[5m])) > 1
@@ -72,6 +76,7 @@ groups:
         annotations:
           summary: "Stale update rate is elevated"
           description: "Stale updates rate exceeded 1 update/sec over 5m. Investigate ingestion freshness and feed quality."
+          runbook_url: "https://github.com/fashkl/retail-live-pricing/blob/main/docs/runbooks/alerts.md#staleupdatesspike"
 
       - alert: ConflationDropRatioHigh
         expr: |
@@ -87,6 +92,7 @@ groups:
         annotations:
           summary: "Conflation drop ratio is high"
           description: "More than 40% of input ticks are being dropped over 10m. Review conflation window and throughput."
+          runbook_url: "https://github.com/fashkl/retail-live-pricing/blob/main/docs/runbooks/alerts.md#conflationdropratiohigh"
 
       - alert: RetailLivePricingTargetDown
         expr: up{job="retail-live-pricing"} == 0
@@ -98,6 +104,7 @@ groups:
         annotations:
           summary: "Retail Live Pricing metrics target is down"
           description: "Prometheus cannot scrape the retail-live-pricing target for more than 2 minutes."
+          runbook_url: "https://github.com/fashkl/retail-live-pricing/blob/main/docs/runbooks/alerts.md#retaillivepricingtargetdown"
 
       - alert: KafkaConsumerLagHigh
         expr: max(kafka_consumer_fetch_manager_records_lag_max{job="retail-live-pricing"}) > 1000
@@ -109,6 +116,7 @@ groups:
         annotations:
           summary: "Kafka consumer lag is elevated"
           description: "Max consumer lag exceeded 1,000 records for 5m. Check consumer throughput and partition skew."
+          runbook_url: "https://github.com/fashkl/retail-live-pricing/blob/main/docs/runbooks/alerts.md#kafkaconsumerlaghigh"
 
       - alert: KafkaConsumerLagCritical
         expr: max(kafka_consumer_fetch_manager_records_lag_max{job="retail-live-pricing"}) > 5000
@@ -120,3 +128,4 @@ groups:
         annotations:
           summary: "Kafka consumer lag is critically high"
           description: "Max consumer lag exceeded 5,000 records for 2m. User-facing latency risk is high."
+          runbook_url: "https://github.com/fashkl/retail-live-pricing/blob/main/docs/runbooks/alerts.md#kafkaconsumerlagcritical"

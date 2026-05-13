@@ -322,14 +322,18 @@ Current automated tests cover:
 
 ## Observability
 
-- Spring Actuator metrics endpoint enabled
-- Prometheus scrape config included (`ops/prometheus.yml`)
-- counters for published ticks, calc tasks, gateway sends/failures
-
-Recommended next additions:
-- histogram metrics for end-to-end tick-to-screen latency
-- consumer lag metrics per Kafka topic/group
-- structured logs with correlation IDs across pipeline steps
+- Spring Actuator metrics endpoint enabled (`/actuator/prometheus`)
+- Prometheus scrape + alert rules included:
+  - `/Users/mohamedali/Projects/personal/java/retail-live-pricing/ops/prometheus.yml`
+  - `/Users/mohamedali/Projects/personal/java/retail-live-pricing/ops/prometheus-alerts.yml`
+- Grafana dashboards provisioned for:
+  - business overview
+  - latency and SLOs
+  - pipeline health (including Kafka consumer lag panels)
+- Alertmanager routing config included:
+  - `/Users/mohamedali/Projects/personal/java/retail-live-pricing/ops/alertmanager.yml`
+- Runbooks linked directly from alert annotations:
+  - `/Users/mohamedali/Projects/personal/java/retail-live-pricing/docs/runbooks/alerts.md`
 
 ## Performance and SLO Targets
 
