@@ -37,9 +37,8 @@ otelcol.processor.tail_sampling "default" {
     name = "drop-health-checks"
     type = "string_attribute"
     string_attribute {
-      key                         = "http.target"
-      values                      = ["/actuator/health", "/actuator/prometheus"]
-      enabled_for_root_spans_only = true
+      key    = "http.target"
+      values = ["/actuator/health", "/actuator/prometheus"]
     }
   }
 

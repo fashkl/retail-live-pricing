@@ -1,0 +1,12 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: retail-live-pricing
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["app:8383"]
+
+  - job_name: alloy
+    static_configs:
+      - targets: ["alloy:12345"]
