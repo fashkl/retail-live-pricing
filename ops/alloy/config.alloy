@@ -1,0 +1,83 @@
+// Existing Docker logs pipeline can be extended here later; this block adds OTLP trace ingestion.
+
+otelcol.receiver.otlp "traces" {
+  grpc { endpoint = "0.0.0.0:4317" }
+  http { endpoint = "0.0.0.0:4318" }
+  output {
+    traces = [otelcol.processor.attributes.scrub.input]
+  }
+}
+
+otelcol.processor.attributes "scrub" {
+  action {
+    key    = "messaging.kafka.message.key"
+    action = "delete"
+  }
+  output {
+    traces = [otelcol.processor.tail_sampling.default.input]
+  }
+}
+
+otelcol.processor.tail_sampling "default" {
+  decision_wait = "10s"
+
+  policy {
+    name = "always-errors"
+    type = "status_code"
+    status_code { status_codes = ["ERROR"] }
+  }
+
+  policy {
+    name = "always-slow"
+    type = "latency"
+    latency { threshold_ms = 500 }
+  }
+
+  policy {
+    name = "drop-health-checks"
+    type = "string_attribute"
+    string_attribute {
+      key                         = "http.target"
+      values                      = ["/actuator/health", "/actuator/prometheus"]
+      enabled_for_root_spans_only = true
+    }
+  }
+
+  policy {
+    name = "probabilistic-baseline"
+    type = "probabilistic"
+    probabilistic { sampling_percentage = 10 }
+  }
+
+  output {
+    traces = [otelcol.processor.batch.default.input]
+  }
+}
+
+otelcol.processor.batch "default" {
+  timeout = "5s"
+  send_batch_size = 512
+  send_batch_max_size = 1024
+  output {
+    traces = [otelcol.exporter.otlp.tempo.input]
+  }
+}
+
+otelcol.exporter.otlp "tempo" {
+  client {
+    endpoint = "tempo:4317"
+    tls { insecure = true }
+  }
+
+  sending_queue {
+    enabled = true
+    queue_size = 10000
+  }
+
+  retry_on_failure {
+    enabled = true
+    initial_interval = "5s"
+    max_interval = "30s"
+    max_elapsed_time = "300s"
+  }
+}
