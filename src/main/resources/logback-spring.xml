@@ -18,6 +18,8 @@
                           "message":"%message",
                           "application":"${appName}",
                           "env":"${ENVIRONMENT:-local}",
+                          "traceId":"%mdc{trace_id:-}",
+                          "spanId":"%mdc{span_id:-}",
                           "correlationId":"%mdc{correlationId:-}",
                           "userId":"%mdc{userId:-}",
                           "wsSessionId":"%mdc{wsSessionId:-}"
