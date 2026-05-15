@@ -8,6 +8,10 @@ datasources:
     url: http://prometheus:9090
     isDefault: true
     editable: false
+    jsonData:
+      exemplarTraceIdDestinations:
+        - name: traceID
+          datasourceUid: tempo
 
   - name: Loki
     uid: loki
