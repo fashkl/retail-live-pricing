@@ -73,6 +73,17 @@ services:
       CACHE_REDIS_HOST: redis
       CACHE_REDIS_PORT: 6379
       CACHE_REDIS_PASS: ${CACHE_REDIS_PASS:-SeCrET}
+      OTEL_SERVICE_NAME: retail-live-pricing
+      OTEL_RESOURCE_ATTRIBUTES: deployment.environment=local,service.version=0.1.0
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4317
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_PROPAGATORS: tracecontext,baggage
+      OTEL_INSTRUMENTATION_KAFKA_ENABLED: "true"
+      OTEL_INSTRUMENTATION_JDBC_ENABLED: "true"
+      OTEL_INSTRUMENTATION_LETTUCE_ENABLED: "true"
+      OTEL_LOGS_EXPORTER: none
+      OTEL_METRICS_EXPORTER: none
+      OTEL_TRACES_SAMPLER: always_on
     depends_on:
       postgres:
         condition: service_healthy
