@@ -82,6 +82,14 @@ services:
       - tempo-data:/var/tempo
     restart: unless-stopped
 
+  loki:
+    image: grafana/loki:3.1.1
+    container_name: live-pricing-loki
+    command: [ "-config.file=/etc/loki/local-config.yaml" ]
+    ports:
+      - "3100:3100"
+    restart: unless-stopped
+
   prometheus:
     image: prom/prometheus:v2.53.0
     container_name: live-pricing-prometheus
@@ -115,6 +123,7 @@ services:
     depends_on:
       - prometheus
       - tempo
+      - loki
     restart: unless-stopped
 
   app:
