@@ -1,7 +1,21 @@
+# syntax=docker/dockerfile:1.7
 FROM eclipse-temurin:21-jdk-alpine AS builder
 WORKDIR /app
-COPY . .
-RUN ./gradlew bootJar --no-daemon
+
+# 1) Copy Gradle wrapper/build descriptors first to maximize layer cache reuse.
+COPY gradlew ./
+COPY gradle ./gradle
+COPY build.gradle.kts settings.gradle.kts ./
+
+# Warm dependency/cache layers (BuildKit cache mount keeps ~/.gradle across builds).
+RUN --mount=type=cache,target=/root/.gradle \
+    chmod +x gradlew && ./gradlew --no-daemon dependencies > /dev/null
+
+# 2) Copy sources after dependency resolution so code-only changes don't bust dependency cache.
+COPY src ./src
+
+RUN --mount=type=cache,target=/root/.gradle \
+    ./gradlew bootJar --no-daemon
 
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
