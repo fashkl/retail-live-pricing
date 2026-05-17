@@ -1,0 +1,292 @@
+{
+  "id": null,
+  "uid": "latency-deep-dive",
+  "title": "Latency Deep Dive",
+  "tags": [
+    "latency",
+    "p95",
+    "p99",
+    "exemplars",
+    "tempo"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "HTTP Latency Percentiles (ms)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.50, sum(rate(http_server_requests_seconds_bucket{application=\"retail-live-pricing\"}[5m])) by (le)) * 1000",
+          "legendFormat": "p50",
+          "exemplar": true
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{application=\"retail-live-pricing\"}[5m])) by (le)) * 1000",
+          "legendFormat": "p95",
+          "exemplar": true
+        },
+        {
+          "refId": "C",
+          "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{application=\"retail-live-pricing\"}[5m])) by (le)) * 1000",
+          "legendFormat": "p99",
+          "exemplar": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 200
+              },
+              {
+                "color": "red",
+                "value": 500
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Business Path Latency (ms)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.50, sum(rate(business_tick_to_screen_latency_ms_bucket[5m])) by (le))",
+          "legendFormat": "tick->screen p50",
+          "exemplar": true
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum(rate(business_tick_to_screen_latency_ms_bucket[5m])) by (le))",
+          "legendFormat": "tick->screen p95",
+          "exemplar": true
+        },
+        {
+          "refId": "C",
+          "expr": "histogram_quantile(0.99, sum(rate(business_tick_to_screen_latency_ms_bucket[5m])) by (le))",
+          "legendFormat": "tick->screen p99",
+          "exemplar": true
+        },
+        {
+          "refId": "D",
+          "expr": "histogram_quantile(0.95, sum(rate(business_portfolio_recalc_delay_ms_bucket[5m])) by (le))",
+          "legendFormat": "portfolio p95",
+          "exemplar": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 200
+              },
+              {
+                "color": "red",
+                "value": 500
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Trace Span p95 by Operation (ms)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (span_name, le) (rate(traces_spanmetrics_latency_bucket{service_name=\"retail-live-pricing\"}[5m]))) * 1000",
+          "legendFormat": "{{span_name}}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Trace Error Rate by Operation (/s)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (span_name) (rate(traces_spanmetrics_calls_total{service_name=\"retail-live-pricing\",status_code=\"STATUS_CODE_ERROR\"}[5m]))",
+          "legendFormat": "{{span_name}}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Kafka Lag vs Tick-to-Screen p95",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(kafka_consumer_records_lag_max)",
+          "legendFormat": "kafka lag max"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum(rate(business_tick_to_screen_latency_ms_bucket[5m])) by (le))",
+          "legendFormat": "tick->screen p95 ms"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Conflation Drop Ratio vs Tick-to-Screen p95",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(business_conflation_dropped_total[5m])) / clamp_min(sum(rate(business_conflation_input_total[5m])), 1)",
+          "legendFormat": "drop ratio"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum(rate(business_tick_to_screen_latency_ms_bucket[5m])) by (le))",
+          "legendFormat": "tick->screen p95 ms"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "type": "table",
+      "title": "Top Slow Span Operations (p95 ms)",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "instant": true,
+          "expr": "topk(15, histogram_quantile(0.95, sum by (span_name, le) (rate(traces_spanmetrics_latency_bucket{service_name=\"retail-live-pricing\"}[5m]))) * 1000)"
+        }
+      ]
+    }
+  ],
+  "links": [
+    {
+      "title": "Tempo Search (retail-live-pricing)",
+      "url": "/explore?orgId=1&left=%5B\"now-1h\",\"now\",\"Tempo\",%7B%22query%22:%22%7Bresource.service.name%3D%5C%22retail-live-pricing%5C%22%7D%22%7D%5D",
+      "targetBlank": false
+    },
+    {
+      "title": "Ops Incident Center",
+      "url": "/d/ops-incident-center/operations-incident-center",
+      "targetBlank": false
+    }
+  ]
+}
