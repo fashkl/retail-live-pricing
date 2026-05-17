@@ -1,0 +1,83 @@
+{
+  "id": null,
+  "uid": "golden-journey",
+  "title": "Golden Journey E2E",
+  "tags": ["otel", "journey", "e2e"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-15m", "to": "now" },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Ingestion Rate (/s)",
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "sum(rate(business_ticks_published_total[1m]))", "refId": "A" }]
+    },
+    {
+      "type": "stat",
+      "title": "Price Updates Rate (/s)",
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "sum(rate(business_price_updates_published_total[1m]))", "refId": "A" }]
+    },
+    {
+      "type": "stat",
+      "title": "Portfolio Tasks Rate (/s)",
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "sum(rate(business_portfolio_calc_tasks_created_total[1m]))", "refId": "A" }]
+    },
+    {
+      "type": "stat",
+      "title": "WS Delivered Rate (/s)",
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "sum(rate(business_updates_delivered_total[1m]))", "refId": "A" }]
+    },
+    {
+      "type": "timeseries",
+      "title": "Stage Throughput Trend",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum(rate(business_ticks_published_total[1m]))", "legendFormat": "ingestion", "refId": "A" },
+        { "expr": "sum(rate(business_price_updates_published_total[1m]))", "legendFormat": "price-updates", "refId": "B" },
+        { "expr": "sum(rate(business_portfolio_calc_tasks_created_total[1m]))", "legendFormat": "portfolio-calc-tasks", "refId": "C" },
+        { "expr": "sum(rate(business_portfolio_snapshots_published_total[1m]))", "legendFormat": "portfolio-updates", "refId": "D" },
+        { "expr": "sum(rate(business_updates_delivered_total{message_type=\"portfolio_snapshot\"}[1m]))", "legendFormat": "ws portfolio_snapshot", "refId": "E" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Latency p95 (Tick->Screen and Portfolio Recalc)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(business_tick_to_screen_latency_ms_bucket[5m])) by (le))", "legendFormat": "tick->screen p95 ms", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum(rate(business_portfolio_recalc_delay_ms_bucket[5m])) by (le))", "legendFormat": "portfolio recalc p95 ms", "refId": "B" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Kafka Consumer Lag (max)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "max by (topic, partition, spring_id) (kafka_consumer_records_lag_max)", "legendFormat": "{{spring_id}} {{topic}} p{{partition}}", "refId": "A" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Data Quality Ratios",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum(rate(business_stale_updates_total[5m])) / clamp_min(sum(rate(business_price_updates_published_total[5m])), 1)", "legendFormat": "stale_ratio", "refId": "A" },
+        { "expr": "sum(rate(business_conflation_dropped_total[5m])) / clamp_min(sum(rate(business_conflation_input_total[5m])), 1)", "legendFormat": "conflation_drop_ratio", "refId": "B" }
+      ]
+    }
+  ]
+}

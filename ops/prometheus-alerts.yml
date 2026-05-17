@@ -1,0 +1,122 @@
+groups:
+  - name: retail-live-pricing.slo
+    rules:
+      - alert: UpdateDeliveryFastBurn
+        expr: |
+          (
+            sum(rate(business_updates_failed_total[5m]))
+            /
+            clamp_min(sum(rate(business_updates_delivered_total[5m])) + sum(rate(business_updates_failed_total[5m])), 1)
+          ) > 0.10
+        for: 5m
+        labels:
+          severity: critical
+          category: slo
+        annotations:
+          summary: "Fast burn: update delivery errors are consuming SLO budget"
+          impact: "Users may receive delayed or failed live updates."
+          dashboard: "http://localhost:3000/d/latency-slo/pricing-latency-slo"
+          runbook: "docs/runbooks/update-delivery-burn.md"
+
+      - alert: UpdateDeliverySlowBurn
+        expr: |
+          (
+            sum(rate(business_updates_failed_total[30m]))
+            /
+            clamp_min(sum(rate(business_updates_delivered_total[30m])) + sum(rate(business_updates_failed_total[30m])), 1)
+          ) > 0.03
+        for: 30m
+        labels:
+          severity: warning
+          category: slo
+        annotations:
+          summary: "Slow burn: sustained update delivery degradation"
+          impact: "Prolonged delivery instability can erode user trust."
+          dashboard: "http://localhost:3000/d/latency-slo/pricing-latency-slo"
+          runbook: "docs/runbooks/update-delivery-burn.md"
+
+      - alert: TickToScreenP95HighFastBurn
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(business_tick_to_screen_latency_ms_bucket[5m])) by (le)
+          ) > 500
+        for: 5m
+        labels:
+          severity: critical
+          category: slo
+        annotations:
+          summary: "Tick-to-screen p95 exceeds 500ms"
+          impact: "Realtime UX degraded; users see stale prices."
+          dashboard: "http://localhost:3000/d/latency-slo/pricing-latency-slo"
+          runbook: "docs/runbooks/tick-to-screen-latency.md"
+
+  - name: retail-live-pricing.kafka
+    rules:
+      - alert: KafkaConsumerLagHigh
+        expr: max by (topic, partition, spring_id) (kafka_consumer_records_lag_max) > 1000
+        for: 5m
+        labels:
+          severity: warning
+          category: kafka
+        annotations:
+          summary: "Kafka consumer lag high"
+          impact: "Pipeline delay may impact portfolio snapshots and websocket delivery."
+          runbook: "docs/runbooks/kafka-lag.md"
+
+      - alert: KafkaConsumerRebalanceSpike
+        expr: sum(increase(kafka_consumer_rebalance_total[10m])) > 3
+        for: 10m
+        labels:
+          severity: warning
+          category: kafka
+        annotations:
+          summary: "Consumer rebalance frequency elevated"
+          impact: "Frequent rebalances can cause brief processing stalls."
+          runbook: "docs/runbooks/kafka-lag.md"
+
+  - name: retail-live-pricing.data-quality
+    rules:
+      - alert: StaleFeedRatioHigh
+        expr: |
+          (
+            sum(rate(business_stale_updates_total[10m]))
+            /
+            clamp_min(sum(rate(business_price_updates_published_total[10m])), 1)
+          ) > 0.15
+        for: 10m
+        labels:
+          severity: warning
+          category: data-quality
+        annotations:
+          summary: "Stale feed ratio elevated"
+          impact: "Market data quality degraded despite infra being healthy."
+          runbook: "docs/runbooks/data-quality.md"
+
+      - alert: ConflationDropRatioHigh
+        expr: |
+          (
+            sum(rate(business_conflation_dropped_total[10m]))
+            /
+            clamp_min(sum(rate(business_conflation_input_total[10m])), 1)
+          ) > 0.80
+        for: 10m
+        labels:
+          severity: warning
+          category: data-quality
+        annotations:
+          summary: "Conflation drop ratio very high"
+          impact: "Too many intermediate ticks dropped; users may miss rapid moves."
+          runbook: "docs/runbooks/data-quality.md"
+
+  - name: retail-live-pricing.cardinality
+    rules:
+      - alert: PrometheusSeriesCardinalityHigh
+        expr: prometheus_tsdb_head_series > 200000
+        for: 15m
+        labels:
+          severity: warning
+          category: cardinality
+        annotations:
+          summary: "Prometheus active series cardinality high"
+          impact: "Query latency and infra cost may increase significantly."
+          runbook: "docs/runbooks/cardinality-guardrails.md"
