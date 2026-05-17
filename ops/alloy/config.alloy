@@ -1,0 +1,114 @@
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+    replacement   = "$1"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "compose_service"
+  }
+}
+
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.containers.output
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
+
+// OTLP traces pipeline
+
+otelcol.receiver.otlp "traces" {
+  grpc { endpoint = "0.0.0.0:4317" }
+  http { endpoint = "0.0.0.0:4318" }
+  output {
+    traces = [otelcol.processor.attributes.scrub.input]
+  }
+}
+
+otelcol.processor.attributes "scrub" {
+  action {
+    key    = "messaging.kafka.message.key"
+    action = "delete"
+  }
+  output {
+    traces = [otelcol.processor.tail_sampling.default.input]
+  }
+}
+
+otelcol.processor.tail_sampling "default" {
+  decision_wait = "10s"
+
+  policy {
+    name = "always-errors"
+    type = "status_code"
+    status_code { status_codes = ["ERROR"] }
+  }
+
+  policy {
+    name = "always-slow"
+    type = "latency"
+    latency { threshold_ms = 500 }
+  }
+
+  policy {
+    name = "drop-health-checks"
+    type = "string_attribute"
+    string_attribute {
+      key    = "http.target"
+      values = ["/actuator/health", "/actuator/prometheus"]
+    }
+  }
+
+  policy {
+    name = "probabilistic-baseline"
+    type = "probabilistic"
+    probabilistic { sampling_percentage = 10 }
+  }
+
+  output {
+    traces = [otelcol.processor.batch.default.input]
+  }
+}
+
+otelcol.processor.batch "default" {
+  timeout = "5s"
+  send_batch_size = 512
+  send_batch_max_size = 1024
+  output {
+    traces = [otelcol.exporter.otlp.tempo.input]
+  }
+}
+
+otelcol.exporter.otlp "tempo" {
+  client {
+    endpoint = "tempo:4317"
+    tls { insecure = true }
+  }
+
+  sending_queue {
+    enabled = true
+    queue_size = 10000
+  }
+
+  retry_on_failure {
+    enabled = true
+    initial_interval = "5s"
+    max_interval = "30s"
+    max_elapsed_time = "300s"
+  }
+}

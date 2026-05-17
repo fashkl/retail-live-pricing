@@ -1,5 +1,6 @@
 package com.retail.livepricing.common.config;
 
+import io.opentelemetry.context.Context;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -17,6 +18,6 @@ public class AsyncConfig {
         executor.setMaxPoolSize(32);
         executor.setQueueCapacity(10_000);
         executor.initialize();
-        return executor;
+        return Context.taskWrapping(executor.getThreadPoolExecutor());
     }
 }

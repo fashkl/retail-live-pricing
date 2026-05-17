@@ -41,6 +41,7 @@ public class DataSeeder implements CommandLineRunner {
     @Override
     public void run(String... args) {
         if (userRepository.existsById("demo-user-1")) {
+            reindexHoldersFromDatabase();
             return;
         }
 
@@ -63,6 +64,15 @@ public class DataSeeder implements CommandLineRunner {
         seedWatchlist(user.getId(), List.of("AMD", "GOOGL", "ETHUSD"));
 
         indexHolder(user.getId(), List.of("AAPL", "MSFT", "NVDA", "BTCUSD"));
+    }
+
+    private void reindexHoldersFromDatabase() {
+        for (PortfolioEntity portfolio : portfolioRepository.findAll()) {
+            String userId = portfolio.getUserId();
+            for (PositionEntity position : positionRepository.findByPortfolioId(portfolio.getId())) {
+                redisTemplate.opsForSet().add("holders:" + position.getSymbol(), userId);
+            }
+        }
     }
 
     private void seedPosition(String portfolioId, String symbol, String quantity, String avgCost, String costBasis) {

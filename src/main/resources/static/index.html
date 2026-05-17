@@ -105,6 +105,14 @@
     events.textContent = `${new Date().toISOString()} ${msg}\n` + events.textContent.slice(0, 5000);
   }
 
+  function parseTimestampMillis(value) {
+    if (!value || typeof value !== 'string') return NaN;
+    // Normalize nanosecond-style fractions (e.g. .123456789Z) for wider browser compatibility.
+    const normalized = value.replace(/\.(\d{3})\d+(Z|[+-]\d{2}:\d{2})$/, '.$1$2');
+    const parsed = Date.parse(normalized);
+    return Number.isNaN(parsed) ? NaN : parsed;
+  }
+
   const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
   const ws = new WebSocket(`${protocol}://${location.host}/ws/pricing?userId=demo-user-1`);
 
@@ -141,8 +149,8 @@
       const cls = Number(data.snapshot.unrealizedPnl) >= 0 ? 'up' : 'down';
       pnl.className = cls;
       const now = Date.now();
-      const calcAt = Date.parse(data.snapshot.calculatedAt);
-      latency.textContent = `${Math.max(0, now - calcAt)} ms`;
+      const calcAt = parseTimestampMillis(data.snapshot.calculatedAt);
+      latency.textContent = Number.isNaN(calcAt) ? '-' : `${Math.max(0, now - calcAt)} ms`;
       lines.innerHTML = data.snapshot.lines.map(line => {
         const color = Number(line.unrealizedPnl) >= 0 ? 'up' : 'down';
         return `<tr><td>${line.symbol}</td><td>${fmt(line.quantity)}</td><td>${fmt(line.lastPrice)}</td><td class="${color}">${fmt(line.unrealizedPnl)}</td></tr>`;
