@@ -12,6 +12,11 @@ import com.retail.livepricing.common.model.PriceUpdate;
 import com.retail.livepricing.common.model.ScreenContext;
 import com.retail.livepricing.common.model.ScreenType;
 import com.retail.livepricing.common.observability.CorrelationContext;
+import io.opentelemetry.api.GlobalOpenTelemetry;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.api.trace.Tracer;
+import io.opentelemetry.context.Scope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -27,6 +32,7 @@ import java.util.Set;
 @Service
 public class GatewayOutboundService {
     private static final Logger log = LoggerFactory.getLogger(GatewayOutboundService.class);
+    private static final String TRACER_NAME = "retail-live-pricing.streaming-gateway";
     private final WebSocketSessionRegistry sessionRegistry;
     private final SessionContextService sessionContextService;
     private final ObjectMapper objectMapper;
@@ -106,23 +112,34 @@ public class GatewayOutboundService {
     }
 
     private boolean send(WebSocketSession session, Object payload, String messageType, ScreenType screen) {
+        Tracer tracer = GlobalOpenTelemetry.getTracer(TRACER_NAME);
+        Span span = tracer.spanBuilder("gateway.ws_send").startSpan();
+        span.setAttribute("message_type", messageType);
+        span.setAttribute("screen_context", screen == null ? "UNKNOWN" : screen.name());
+        span.setAttribute("delivered_sessions", 0);
         try {
-            MDC.put("wsSessionId", session.getId());
-            String userId = userIdForSession(session);
-            if (userId != null) {
-                MDC.put("userId", userId);
+            try (Scope ignored = span.makeCurrent()) {
+                MDC.put("wsSessionId", session.getId());
+                String userId = userIdForSession(session);
+                if (userId != null) {
+                    MDC.put("userId", userId);
+                }
+                session.sendMessage(new TextMessage(objectMapper.writeValueAsString(payload)));
+                span.setAttribute("delivered_sessions", 1);
+                businessMetrics.recordUpdateDelivered(messageType, screen);
+                log.info("FLOW stage=gateway.ws_send status=delivered type={} screen={} correlationId={}",
+                        messageType, screen, CorrelationContext.get());
+                return true;
             }
-            session.sendMessage(new TextMessage(objectMapper.writeValueAsString(payload)));
-            businessMetrics.recordUpdateDelivered(messageType, screen);
-            log.info("FLOW stage=gateway.ws_send status=delivered type={} screen={} correlationId={}",
-                    messageType, screen, CorrelationContext.get());
-            return true;
         } catch (IOException ex) {
+            span.recordException(ex);
+            span.setStatus(StatusCode.ERROR, ex.getMessage());
             businessMetrics.recordUpdateFailed(messageType, screen, "io_exception");
             log.warn("FLOW stage=gateway.ws_send status=failed type={} screen={} error={} correlationId={}",
                     messageType, screen, ex.getMessage(), CorrelationContext.get());
             return false;
         } finally {
+            span.end();
             MDC.remove("wsSessionId");
             MDC.remove("userId");
         }
